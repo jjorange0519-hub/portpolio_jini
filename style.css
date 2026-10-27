@@ -320,3 +320,8 @@ h1, h2, h3, h4, p { margin: 0; }
   .gb-form { grid-template-columns: 1fr; }
   .gb-form button { padding: 12px; }
 }
+
+/* ===== 맨 아래 관리자 링크 ===== */
+.admin-link { text-align: center; margin-top: 24px; font-size: 12px; }
+.admin-link a { color: var(--gray); text-decoration: none; }
+.admin-link a:hover { text-decoration: underline; }
