@@ -15,11 +15,21 @@ async function api(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   if (!res.ok) {
-    const error = new Error("요청 실패 (" + res.status + ")");
+    // Supabase 가 알려 준 이유(예: "비밀번호가 맞지 않아요.")가 있으면 그걸 쓴다
+    let reason = "";
+    try { reason = (await res.json()).message || ""; } catch (e) { /* 내용 없음 */ }
+    const error = new Error(reason || "요청 실패 (" + res.status + ")");
     error.status = res.status;
+    error.reason = reason;
     throw error;
   }
   return res;
+}
+
+// Supabase 함수(rpc) 부르기
+async function rpc(name, body) {
+  const res = await api("rpc/" + name, { method: "POST", body });
+  return res.json();
 }
 
 // ===== 브라우저에 저장하는 값 (client_id, 좋아요 누른 카드) =====
@@ -232,18 +242,107 @@ async function loadProjects() {
 }
 
 // ===== 방명록 =====
+const GB_COLUMNS = "id,nickname,message,created_at,updated_at";
+
+function gbButton(text, className, onClick) {
+  const b = el("button", "gb-tool " + (className || ""), text);
+  b.type = "button";
+  b.addEventListener("click", onClick);
+  return b;
+}
+
 function makeGuestbookItem(row) {
   const li = el("li");
   const head = el("div", "gb-head");
-  head.append(el("span", "gb-nick", row.nickname), el("span", "gb-date", formatDate(row.created_at)));
-  li.append(head, el("p", "gb-msg", row.message));
+  const date = el("span", "gb-date", formatDate(row.created_at));
+  const msg = el("p", "gb-msg", row.message);
+  const edited = el("span", "gb-edited", row.updated_at ? "(수정됨)" : "");
+  const tools = el("span", "gb-tools");
+  head.append(el("span", "gb-nick", row.nickname), date, edited, tools);
+  li.append(head, msg);
+
+  // 수정·삭제 칸 (비밀번호를 적어야 한다)
+  let panel = null;
+  function closePanel() {
+    if (panel) panel.remove();
+    panel = null;
+  }
+
+  function openPanel(mode) {
+    closePanel();
+    panel = el("div", "gb-edit");
+    const status = el("p", "gb-edit-status");
+    const password = el("input", "gb-edit-password");
+    password.type = "password";
+    password.placeholder = "글 비밀번호";
+    password.maxLength = 30;
+    password.autocomplete = "off";
+
+    let message = null;
+    if (mode === "edit") {
+      message = el("input", "gb-edit-message");
+      message.type = "text";
+      message.maxLength = 200;
+      message.value = row.message;
+      panel.append(message);
+    }
+
+    const ok = gbButton(mode === "edit" ? "저장" : "삭제하기", "primary", async () => {
+      const pw = password.value;
+      if (pw.length < 4) {
+        status.textContent = "글을 남길 때 적은 비밀번호를 적어 주세요.";
+        return;
+      }
+      if (mode === "edit" && !message.value.trim()) {
+        status.textContent = "한마디를 적어 주세요.";
+        return;
+      }
+      if (mode === "remove" && !confirm("이 글을 지울까요? 되돌릴 수 없어요.")) return;
+
+      ok.disabled = true;
+      status.textContent = "";
+      try {
+        if (mode === "edit") {
+          const updated = await rpc("resume_guestbook_edit", {
+            p_id: row.id, p_password: pw, p_message: message.value.trim(),
+          });
+          row.message = updated.message;
+          row.updated_at = updated.updated_at;
+          msg.textContent = row.message;
+          edited.textContent = "(수정됨)";
+          closePanel();
+          $("gb-status").textContent = "글을 고쳤어요.";
+        } else {
+          await rpc("resume_guestbook_remove", { p_id: row.id, p_password: pw });
+          li.remove();
+          $("gb-status").textContent = "글을 지웠어요.";
+        }
+      } catch (e) {
+        status.textContent = e.reason || "잠시 뒤 다시 해 주세요.";
+        ok.disabled = false;
+      }
+    });
+
+    password.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.isComposing) ok.click();
+    });
+
+    panel.append(password, ok, gbButton("취소", "", closePanel), status);
+    li.append(panel);
+    (message || password).focus();
+  }
+
+  tools.append(
+    gbButton("수정", "", () => openPanel("edit")),
+    gbButton("삭제", "danger", () => openPanel("remove"))
+  );
   return li;
 }
 
 async function loadGuestbook() {
   const list = $("gb-list");
   try {
-    const res = await api("resume_guestbook?select=*&order=created_at.desc&limit=100");
+    const res = await api("resume_guestbook?select=" + GB_COLUMNS + "&order=created_at.desc&limit=100");
     const rows = await res.json();
     list.replaceChildren(...rows.map(makeGuestbookItem));
     if (rows.length === 0) $("gb-status").textContent = "첫 글을 남겨 주세요!";
@@ -254,31 +353,35 @@ async function loadGuestbook() {
 
 async function submitGuestbook() {
   const nickInput = $("gb-nickname");
+  const pwInput = $("gb-password");
   const msgInput = $("gb-message");
   const button = $("gb-submit");
   const status = $("gb-status");
   const nickname = nickInput.value.trim();
+  const password = pwInput.value;
   const message = msgInput.value.trim();
 
   if (!nickname || !message) {
     status.textContent = "별명과 한마디를 모두 적어 주세요.";
     return;
   }
+  if (password.length < 4) {
+    status.textContent = "비밀번호를 4자 이상 적어 주세요. 내 글을 고치거나 지울 때 필요해요.";
+    return;
+  }
 
   button.disabled = true;
   status.textContent = "남기는 중…";
   try {
-    const res = await api("resume_guestbook", {
-      method: "POST",
-      headers: { Prefer: "return=representation" },
-      body: { nickname, message },
+    const row = await rpc("resume_guestbook_add", {
+      p_nickname: nickname, p_message: message, p_password: password,
     });
-    const rows = await res.json();
-    $("gb-list").prepend(makeGuestbookItem(rows[0]));
+    $("gb-list").prepend(makeGuestbookItem(row));
     msgInput.value = "";
+    pwInput.value = "";
     status.textContent = "고마워요! 글이 남겨졌어요.";
   } catch (e) {
-    status.textContent = "글을 남기지 못했어요. 잠시 뒤 다시 해 주세요.";
+    status.textContent = e.reason || "글을 남기지 못했어요. 잠시 뒤 다시 해 주세요.";
   } finally {
     button.disabled = false;
   }

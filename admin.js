@@ -515,7 +515,7 @@ async function loadGuestbook() {
   const list = $("gb-list");
   let rows;
   try {
-    rows = await db("resume_guestbook?select=*&order=created_at.desc&limit=200");
+    rows = await db("resume_guestbook?select=id,nickname,message,created_at,updated_at&order=created_at.desc&limit=200");
   } catch (e) {
     setStatus("gb-status", "방명록을 불러오지 못했어요. " + e.message, true);
     return;
@@ -533,7 +533,7 @@ function makeGuestbookItem(row) {
 
   const del = button("삭제", "small danger", (e) => busy(e.currentTarget, "gb-status", async () => {
     if (!confirm("'" + row.nickname + "'님의 글을 지울까요? 되돌릴 수 없어요.")) return;
-    const deleted = await db("resume_guestbook?id=eq." + row.id, {
+    const deleted = await db("resume_guestbook?id=eq." + row.id + "&select=id", {
       method: "DELETE",
       headers: { Prefer: "return=representation" },
     });
