@@ -22,7 +22,8 @@ body {
 }
 
 /* 바탕 그림: 남계우 「화접도」 (background.jpg). 파일이 없으면 카키색만 보인다.
-   스크롤해도 그림은 제자리에 있고, 화면 크기에 맞춰 꽉 채운다. */
+   스크롤해도 그림은 제자리에 있고, 화면 크기에 맞춰 꽉 채운다.
+   그림의 위쪽(꽃)을 화면 위쪽에 맞춘다. */
 body::before {
   content: "";
   position: fixed;
@@ -30,7 +31,7 @@ body::before {
   z-index: -1;
   background:
     linear-gradient(rgba(216, 211, 180, 0.25), rgba(216, 211, 180, 0.25)),
-    url("background.jpg") center / cover no-repeat;
+    url("background.jpg") center top / cover no-repeat;
 }
 
 h1, h2, h3, h4, p { margin: 0; }
