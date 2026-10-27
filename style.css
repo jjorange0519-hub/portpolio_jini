@@ -1,6 +1,7 @@
 /* ===== 기본 색과 글꼴 ===== */
 :root {
-  --bg: #f1f3f6;        /* 연회색 바탕 */
+  --page-bg: #d8d3b4;   /* 전체 바탕 (카키 계열) */
+  --bg: #f1f3f6;        /* 칸 안쪽 연회색 */
   --white: #ffffff;
   --blue: #2563eb;      /* 파란 강조색 */
   --blue-soft: #eaf1ff;
@@ -14,7 +15,7 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--page-bg);
   color: var(--text);
   font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   line-height: 1.6;
@@ -98,6 +99,7 @@ h1, h2, h3, h4, p { margin: 0; }
 .contact div { display: flex; flex-direction: column; min-width: 0; }
 .contact small { font-size: 11px; color: var(--gray); letter-spacing: 0.1em; }
 .contact span:not(.icon) { font-weight: 600; word-break: break-all; }
+#contact-email { font-size: 14px; } /* 이메일은 다른 칸보다 2단계 작게 (16px → 14px) */
 
 .icon {
   flex: none;
@@ -348,5 +350,5 @@ h1, h2, h3, h4, p { margin: 0; }
 
 /* ===== 맨 아래 관리자 링크 ===== */
 .admin-link { text-align: center; margin-top: 24px; font-size: 12px; }
-.admin-link a { color: var(--gray); text-decoration: none; }
+.admin-link a { color: #4f4b36; text-decoration: none; }
 .admin-link a:hover { text-decoration: underline; }
